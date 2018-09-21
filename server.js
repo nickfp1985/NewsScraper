@@ -1,16 +1,14 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
+const request = require("request");
 
-// scraping tools
-// var axios = require("axios");
 const cheerio = require("cheerio");
 
 const db = require("./models");
 
-// var PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
-// initialize Express
 const app = express();
 
 // MIDDLEWARE CONFIG
@@ -18,8 +16,10 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // express.static to serve the public folder as a static directory
 app.use(express.static("public"));
 
-// if deployed, use the deployed db. Otherwise, use the local db
-let MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost/mongoHeadlines";
+mongoose.connect("mongodb://localhost/dbArticle", { useNewUrlParser: true });
+
+// // if deployed, use the deployed db. Otherwise, use the local db
+let MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost/dbArticle";
 
 // Set mongoose to leverage built in JavaScript ES6 Promises
 // Connect to the MongoDB
@@ -29,24 +29,19 @@ mongoose.connect(MONGODB_URI);
 // ROUTE for scraping
 app.get("/scrape", function(req, res) {
   // grab the body of the html with request
-  axios.get("http://www.reuters.com/").then(function(response) {
+  request("https://www.reuters.com/news/world", function(error, response, html) {
     // load into cheerio and save it to a shorthand selector: $
-    var $ = cheerio.load(response.data);
+    let $ = cheerio.load(html);
 
-    // grab every h2 and do the following:
-    $("article h2").each(function(i, element) {
+    $(".FeedPage_item-list").each(function(i, element) {
 
       let result = {};
 
-      // add text & href of every link, and save them as properties of the result object
-      result.title = $(this)
-        .children("a")
-        .text();
-      result.link = $(this)
-        .children("a")
-        .attr("href");
+      result.title = $(this).find(".FeedItemHeadline_headline.FeedItemHeadline_full").text().trim();
+      result.summary = $(this).find(".FeedItemLede_lede").text().trim();
+      result.link = $(this).find("a").attr("href");
 
-      // create a new Article using the `result` object built from scraping
+      // create a new Article using the `result` object
       db.Article.create(result)
         .then(function(dbArticle) {
           // show the added Article on console
@@ -72,6 +67,6 @@ app.get("/articles", function(req, res) {
     });
 });
 
-app.listen(MONGODB_URI, function() {
-  console.log("App running on " + MONGODB_URI + "!");
+app.listen(PORT, function() {
+  console.log("App running on " + PORT + "!");
 });
